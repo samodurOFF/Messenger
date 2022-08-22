@@ -1,9 +1,8 @@
 """Константы"""
+from logging import DEBUG
 
-import logging
-
-# Порт поумолчанию для сетевого ваимодействия
-DEFAULT_PORT = 7771
+# Порт по умолчанию для сетевого dpfbvjltqcndbz
+DEFAULT_PORT = 7777
 # IP адрес по умолчанию для подключения клиента
 DEFAULT_IP_ADDRESS = '127.0.0.1'
 # Максимальная очередь подключений
@@ -13,9 +12,9 @@ MAX_PACKAGE_LENGTH = 1024
 # Кодировка проекта
 ENCODING = 'utf-8'
 # Текущий уровень логирования
-LOGGING_LEVEL = logging.DEBUG
+LOGGING_LEVEL = DEBUG
 
-# Прококол JIM основные ключи:
+# Протокол JIM основные ключи:
 ACTION = 'action'
 TIME = 'time'
 USER = 'user'
