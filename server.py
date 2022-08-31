@@ -8,6 +8,7 @@ from common.utils import *
 from decos import log
 from descrptrs import Port
 from metaclasses import ServerVerifier
+from server_DB import ServerDB
 
 # Инициализация логирования сервера.
 logger = getLogger('server')
@@ -30,14 +31,17 @@ def arg_parser():
 class Server(metaclass=ServerVerifier):
     port = Port()
 
-    def __init__(self, listen_address, listen_port):
+    def __init__(self, listen_address, listen_port, database):
         """
         Основной класс сервера
         """
 
-        # Параментры подключения
+        # Параметры подключения
         self.addr = listen_address
         self.port = listen_port
+
+        # База данных сервера
+        self.database = database
 
         # Список подключённых клиентов.
         self.clients = []
@@ -137,6 +141,8 @@ class Server(metaclass=ServerVerifier):
             # Если такой пользователь ещё не зарегистрирован, регистрируем, иначе отправляем ответ и завершаем соединение.
             if message[USER][ACCOUNT_NAME] not in self.names.keys():
                 self.names[message[USER][ACCOUNT_NAME]] = client
+                client_ip, client_port = client.getpeername()
+                self.database.user_login(message[USER][ACCOUNT_NAME], client_ip, client_port)
                 client.send(encode_message(RESPONSE_200))
             else:
                 response = RESPONSE_400
@@ -152,6 +158,7 @@ class Server(metaclass=ServerVerifier):
             return
         # Если клиент выходит
         elif ACTION in message and message[ACTION] == EXIT and ACCOUNT_NAME in message:
+            self.database.user_logout(message[ACCOUNT_NAME])
             self.clients.remove(self.names[ACCOUNT_NAME])
             self.names[ACCOUNT_NAME].close()
             del self.names[ACCOUNT_NAME]
@@ -168,11 +175,14 @@ def main():
     """
     Основная функция запуска сервера
     """
+
     # Загрузка параметров командной строки. Если нет параметров, то задаём значения по умолчанию.
     listen_address, listen_port = arg_parser()
 
-    # Создание экземпляра класса - сервера.
-    server = Server(listen_address, listen_port)
+    database = ServerDB()  # база данных сервера
+
+    # Создание экземпляра класса – сервера.
+    server = Server(listen_address, listen_port, database)
     server.main_loop()
 
 
