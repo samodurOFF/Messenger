@@ -5,7 +5,7 @@ import os
 import unittest
 sys.path.append(os.path.join(os.getcwd(), '..'))
 from common.variables import RESPONSE, ERROR, USER, ACCOUNT_NAME, TIME, ACTION, PRESENCE
-from server import process_client_message
+from server import Server
 
 class TestServer(unittest.TestCase):
     '''
@@ -19,7 +19,7 @@ class TestServer(unittest.TestCase):
 
     def test_no_action(self):
         """Ошибка если нет действия"""
-        self.assertEqual(process_client_message(
+        self.assertEqual(Server.process_client_message(
             {TIME: '1.1', USER: {ACCOUNT_NAME: 'Guest'}}), self.err_dict)
 
     def test_wrong_action(self):

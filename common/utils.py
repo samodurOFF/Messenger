@@ -1,44 +1,37 @@
-"""Утилиты"""
-
-import sys
-import json
+from sys import path
+from json import dumps, loads
 from common.variables import MAX_PACKAGE_LENGTH, ENCODING
-from errors import IncorrectDataRecivedError, NonDictInputError
+from errors import IncorrectDataReceivedError, NonDictInputError
 from decos import log
-sys.path.append('../')
+
+path.append('../')
 
 
 @log
-def get_message(client):
+def decode_message(encoded_response):
     """
-    Утилита приёма и декодирования сообщения принимает байты выдаёт словарь,
-    если приняточто-то другое отдаёт ошибку значения
-    :param client:
-    :return:
+    Функция декодирования сообщения от клиента.
+    Возвращает словарь или бросает исключение, если сообщение не в байтах или если ответ не словарь.
     """
-    encoded_response = client.recv(MAX_PACKAGE_LENGTH)
     if isinstance(encoded_response, bytes):
         json_response = encoded_response.decode(ENCODING)
-        response = json.loads(json_response)
+        response = loads(json_response)
         if isinstance(response, dict):
             return response
         else:
-            raise IncorrectDataRecivedError
+            raise IncorrectDataReceivedError
     else:
-        raise IncorrectDataRecivedError
+        raise IncorrectDataReceivedError
 
 
 @log
-def send_message(sock, message):
+def encode_message(message):
     """
-    Утилита кодирования и отправки сообщения
-    принимает словарь и отправляет его
-    :param sock:
-    :param message:
-    :return:
+    Функция кодирования сообщения.
+    Если сообщение не словарь – бросает исключение.
     """
     if not isinstance(message, dict):
         raise NonDictInputError
-    js_message = json.dumps(message)
+    js_message = dumps(message)
     encoded_message = js_message.encode(ENCODING)
-    sock.send(encoded_message)
+    return encoded_message
