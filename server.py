@@ -5,6 +5,7 @@ from select import select
 from socket import socket, AF_INET, SOCK_STREAM
 from common.variables import *
 from common.utils import *
+import logs.config_server_log
 from decos import log
 from descrptrs import Port
 from metaclasses import ServerVerifier
@@ -56,6 +57,7 @@ class Server(metaclass=ServerVerifier):
         """
         Инициализация сокета
         """
+
         logger.info(
             f'Запущен сервер, порт для подключений: {self.port} , адрес с которого принимаются подключения: {self.addr}. Если адрес не указан, принимаются соединения с любых адресов.')
         # Готовим сокет
@@ -71,6 +73,7 @@ class Server(metaclass=ServerVerifier):
         """
         Метод с основным бесконечным циклом сервера
         """
+
         # Инициализация Сокета
         self.init_socket()
 
@@ -135,6 +138,7 @@ class Server(metaclass=ServerVerifier):
         Метод-обработчик сообщений от клиентов. Принимает словарь-сообщение от клиента, проверяет корректность, отправляет
         словарь-ответ в случае необходимости.
         """
+
         logger.debug(f'Разбор сообщения от клиента : {message}')
         # Если это сообщение о присутствии, принимаем и отвечаем
         if ACTION in message and message[ACTION] == PRESENCE and TIME in message and USER in message:
@@ -151,11 +155,13 @@ class Server(metaclass=ServerVerifier):
                 self.clients.remove(client)
                 client.close()
             return
+
         # Если это сообщение, то добавляем его в очередь сообщений. Ответ не требуется.
         elif ACTION in message and message[ACTION] == MESSAGE and DESTINATION in message and TIME in message \
                 and SENDER in message and MESSAGE_TEXT in message:
             self.messages.append(message)
             return
+
         # Если клиент выходит
         elif ACTION in message and message[ACTION] == EXIT and ACCOUNT_NAME in message:
             self.database.user_logout(message[ACCOUNT_NAME])
@@ -163,6 +169,33 @@ class Server(metaclass=ServerVerifier):
             self.names[ACCOUNT_NAME].close()
             del self.names[ACCOUNT_NAME]
             return
+
+        # Если это запрос контакт-листа
+        elif ACTION in message and message[ACTION] == GET_CONTACTS and USER in message and \
+                self.names[message[USER]] == client:
+            response = RESPONSE_202
+            response[LIST_INFO] = self.database.get_contacts(message[USER])
+            client.send(encode_message(response))
+
+        # Если это добавление контакта
+        elif ACTION in message and message[ACTION] == ADD_CONTACT and ACCOUNT_NAME in message and USER in message \
+                and self.names[message[USER]] == client:
+            self.database.add_contact(message[USER], message[ACCOUNT_NAME])
+            client.send(encode_message(RESPONSE_200))
+
+        # Если это удаление контакта
+        elif ACTION in message and message[ACTION] == REMOVE_CONTACT and ACCOUNT_NAME in message and USER in message \
+                and self.names[message[USER]] == client:
+            self.database.remove_contact(message[USER], message[ACCOUNT_NAME])
+            client.send(encode_message(RESPONSE_200))
+
+        # Если это запрос известных пользователей
+        elif ACTION in message and message[ACTION] == USERS_REQUEST and ACCOUNT_NAME in message \
+                and self.names[message[ACCOUNT_NAME]] == client:
+            response = RESPONSE_202
+            response[LIST_INFO] = [user[0] for user in self.database.users_list()]
+            client.send(encode_message(response))
+
         # Иначе отдаём Bad request
         else:
             response = RESPONSE_400
