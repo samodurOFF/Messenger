@@ -20,12 +20,13 @@ def arg_parser():
     """
     Парсер аргументов командной строки.
     """
+
     parser = ArgumentParser()
-    parser.add_argument('-p', default=DEFAULT_PORT, type=int, nargs='?')
-    parser.add_argument('-a', default='', nargs='?')
+    parser.add_argument('addr', default=DEFAULT_IP_ADDRESS, nargs='?')
+    parser.add_argument('port', default=DEFAULT_PORT, type=int, nargs='?')
     namespace = parser.parse_args(sys.argv[1:])
-    listen_address = namespace.a
-    listen_port = namespace.p
+    listen_address = namespace.addr
+    listen_port = namespace.port
     return listen_address, listen_port
 
 

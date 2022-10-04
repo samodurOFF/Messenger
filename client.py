@@ -23,7 +23,7 @@ database_lock = Lock()
 class Client(Thread):
     def __init__(self, account_name, sock, database):
         """
-        Основной класс формирования и отправки сообщений на сервер и взаимодействия с пользователем.
+        Родительский класс формирования и отправки сообщений на сервер и взаимодействия с пользователем.
         """
 
         self.account_name = account_name
@@ -222,6 +222,14 @@ class ClientReader(Client, metaclass=ClientVerifier):
                         logger.info(f'Получено сообщение от пользователя {message[SENDER]}:\n{message[MESSAGE_TEXT]}')
                     else:
                         logger.error(f'Получено некорректное сообщение с сервера: {message}')
+@log
+def check_server(ip, port):
+    s = socket(AF_INET, SOCK_STREAM)
+    try:
+        s.connect((ip, port))
+        return True
+    except:
+        logger.critical(f'Сервер недоступен по указанному ip адресу {ip} и порту {port}')
 
 
 @log
@@ -435,6 +443,10 @@ def main():
     except (ConnectionRefusedError, ConnectionError):
         logger.critical(
             f'Не удалось подключиться к серверу {server_address}:{server_port}, конечный компьютер отверг запрос на подключение.')
+        exit(1)
+    except TimeoutError:
+        logger.critical(
+            f'Превышено время ожидания ответа от сервера {server_address}:{server_port}. Возможно, сервер не активен!')
         exit(1)
     else:
         database = ClientDB(client_name)  # Инициализация БД
