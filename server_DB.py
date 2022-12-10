@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, ForeignKey, DateTime
+from sqlalchemy import create_engine, Table, Text, Column, Integer, String, MetaData, ForeignKey, DateTime
 from sqlalchemy.orm import mapper, sessionmaker
 from common.variables import *
 import datetime
@@ -15,9 +15,10 @@ class ServerDB:
         Для связи с таблицей users_table
         """
 
-        def __init__(self, username):
+        def __init__(self, username, password):
             self.id = None
             self.name = username
+            self.password = password
             self.last_login = datetime.datetime.now()
 
     class ActiveUsers:
@@ -27,11 +28,11 @@ class ServerDB:
         """
 
         def __init__(self, user_id, ip_address, port, login_time):
+            self.id = None
             self.user = user_id
             self.ip_address = ip_address
             self.port = port
             self.login_time = login_time
-            self.id = None
 
     class LoginHistory:
         """
@@ -69,6 +70,32 @@ class ServerDB:
             self.sent = 0
             self.accepted = 0
 
+    class KnownUsers:
+        """
+        Отображение известных пользователей для владельца учётной записи.
+        Прим: известный пользователь – это такой пользователь, с которым у владельца учётной записи есть общая
+        история сообщений, но этот пользователь не добавлен в список контактов
+        Для связи с таблицей users
+        """
+
+        def __init__(self, owner, user):
+            self.id = None
+            self.owner = owner
+            self.username = user
+
+    class MessageHistory:
+        """
+        Отображение истории сообщений.
+        Для связи с таблицей history
+        """
+
+        def __init__(self, from_user, to_user, message):
+            self.id = None
+            self.from_user = from_user
+            self.to_user = to_user
+            self.message = message
+            self.date = datetime.datetime.now()
+
     def __init__(self):
         """
         Конструктор класса базы данных
@@ -81,54 +108,73 @@ class ServerDB:
         self.metadata = MetaData()
 
         # таблица пользователей
-        users_table = Table('Users', self.metadata,
-                            Column('id', Integer, primary_key=True),
-                            Column('name', String, unique=True),
-                            Column('last_login', DateTime)
-                            )
+        all_users = Table('Users', self.metadata,
+                          Column('id', Integer, primary_key=True),
+                          Column('name', String, unique=True),
+                          Column('name', String, unique=True),
+                          Column('last_login', DateTime),
+                          )
 
         # таблица активных пользователей
-        active_users_table = Table('Active_users', self.metadata,
-                                   Column('id', Integer, primary_key=True),
-                                   Column('user', ForeignKey('Users.id'), unique=True),
-                                   Column('ip_address', String),
-                                   Column('port', Integer),
-                                   Column('login_time', DateTime)
-                                   )
+        active_users = Table('Active_users', self.metadata,
+                             Column('id', Integer, primary_key=True),
+                             Column('user', ForeignKey('Users.id'), unique=True),
+                             Column('ip_address', String),
+                             Column('port', Integer),
+                             Column('login_time', DateTime),
+                             )
 
         # таблица истории входов
-        user_login_history = Table('Login_history', self.metadata,
-                                   Column('id', Integer, primary_key=True),
-                                   Column('name', ForeignKey('Users.id')),
-                                   Column('date_time', DateTime),
-                                   Column('ip', String),
-                                   Column('port', String)
-                                   )
+        login_history = Table('Login_history', self.metadata,
+                              Column('id', Integer, primary_key=True),
+                              Column('name', ForeignKey('Users.id')),
+                              Column('date_time', DateTime),
+                              Column('ip', String),
+                              Column('port', String),
+                              )
 
         # таблица контактов пользователей
         contacts = Table('Contacts', self.metadata,
                          Column('id', Integer, primary_key=True),
                          Column('user', ForeignKey('Users.id')),
-                         Column('contact', ForeignKey('Users.id'))
+                         Column('contact', ForeignKey('Users.id')),
                          )
 
         # таблица истории действий пользователей
-        users_history_table = Table('History', self.metadata,
-                                    Column('id', Integer, primary_key=True),
-                                    Column('user', ForeignKey('Users.id')),
-                                    Column('sent', Integer),
-                                    Column('accepted', Integer),
-                                    )
+        users_history = Table('History', self.metadata,
+                              Column('id', Integer, primary_key=True),
+                              Column('user', ForeignKey('Users.id')),
+                              Column('sent', Integer),
+                              Column('accepted', Integer),
+                              )
+
+        # таблица истории сообщений
+        message_history = Table('message_history', self.metadata,
+                        Column('id', Integer, primary_key=True),
+                        Column('from_user', ForeignKey('Users.id')),
+                        Column('to_user', ForeignKey('Users.id')),
+                        Column('message', Text),
+                        Column('date', DateTime),
+                        )
+
+        # таблица известных пользователей
+        known_users = Table('known_users', self.metadata,
+                      Column('id', Integer, primary_key=True),
+                      Column('owner', ForeignKey('Users.id')),
+                      Column('username', ForeignKey('Users.id')),
+                      )
 
         # создание всех таблиц
         self.metadata.create_all(self.database_engine)
 
         # ORM связь классов отображения с соответствующими таблицами
-        mapper(self.AllUsers, users_table)
-        mapper(self.ActiveUsers, active_users_table)
-        mapper(self.LoginHistory, user_login_history)
+        mapper(self.AllUsers, all_users)
+        mapper(self.ActiveUsers, active_users)
+        mapper(self.LoginHistory, login_history)
         mapper(self.UsersContacts, contacts)
-        mapper(self.UsersHistory, users_history_table)
+        mapper(self.UsersHistory, users_history)
+        mapper(self.MessageHistory, message_history)
+        mapper(self.KnownUsers, known_users)
 
         # Сессия
         Session = sessionmaker(bind=self.database_engine)
@@ -138,7 +184,7 @@ class ServerDB:
         self.session.query(self.ActiveUsers).delete()
         self.session.commit()
 
-    def user_login(self, username, ip_address, port):
+    def user_login(self, username, password, ip_address, port):
         """
         Метод записи данных пользователя при входе на сервер
         """
@@ -150,7 +196,7 @@ class ServerDB:
             user = rez.first()
             user.last_login = datetime.datetime.now()  # обновляем время входа
         else:  # если пользователь новый, то
-            user = self.AllUsers(username)  # создаем пользователя
+            user = self.AllUsers(username, password)  # создаем пользователя
             self.session.add(user)  # и добавляем в таблицу
             self.session.commit()  # сохранение изменений
 
@@ -174,9 +220,9 @@ class ServerDB:
 
         self.session.commit()  # сохранение изменений
 
-    def process_message(self, sender, recipient):
+    def process_message(self, sender, recipient, message):
         """
-        Метод регистрации сообщения
+        Метод регистрации сообщения и его сохранения в базу
         """
 
         sender = self.session.query(self.AllUsers).filter_by(name=sender).first().id
@@ -186,6 +232,10 @@ class ServerDB:
         sender_row.sent += 1
         recipient_row = self.session.query(self.UsersHistory).filter_by(user=recipient).first()
         recipient_row.accepted += 1
+
+        # сохранение сообщения
+        message_row = self.MessageHistory(sender, recipient, message)
+        self.session.add(message_row)
 
         self.session.commit()  # add_new
 
@@ -198,7 +248,6 @@ class ServerDB:
         contact = self.session.query(self.AllUsers).filter_by(name=contact).first()  # пользователя-контакт
 
         already_exist = self.session.query(self.UsersContacts).filter_by(user=user.id, contact=contact.id)
-        print(bool(already_exist))
 
         if user and contact and not already_exist:  # если пользователь и контакт существуют,
             # и контакта пользователя еще не существует в списке его контактов, то
@@ -225,17 +274,18 @@ class ServerDB:
             ).delete()
             self.session.commit()  # add_new
 
-    def users_list(self):
+    def get_users(self, owner):
         """
-        Метод возврата известных пользователей со временем последнего входа.
+        Метод получения списка известных пользователей
         """
+        user = self.session.query(self.AllUsers).filter_by(name=owner).one()  # пользователь
 
-        query = self.session.query(
-            self.AllUsers.name,
-            self.AllUsers.last_login
-        )
+        query = self.session.query(self.UsersContacts, self.AllUsers.name). \
+            filter_by(user=user.id). \
+            join(self.AllUsers, self.UsersContacts.contact == self.AllUsers.id)
 
-        return query.all()
+        # выбираем только имена пользователей и возвращаем их.
+        return [contact[1] for contact in query.all()]
 
     def active_users_list(self):
         """
@@ -253,7 +303,7 @@ class ServerDB:
 
     def login_history(self, username=None):
         """
-        Метод возврата истории входов по пользователю или всем пользователям
+        Метод возврата истории входов по пользователю или по всем пользователям
         """
 
         query = self.session.query(self.AllUsers.name,
@@ -294,3 +344,14 @@ class ServerDB:
         ).join(self.AllUsers)
 
         return query.all()
+
+    def add_users(self, owner, users_list):
+        """
+        Метод добавления известных пользователей.
+        """
+
+        self.session.query(self.KnownUsers).delete()
+        for user in users_list:
+            user_row = self.KnownUsers(owner, user)
+            self.session.add(user_row)
+        self.session.commit()
